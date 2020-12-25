@@ -1,0 +1,118 @@
+---
+title: "Prediction Assignment"
+author: "Karin Kolbe"
+date: "24/12/2020"
+output: html_document
+---
+## Summary
+Subjects were ask to perform barbell lifts correctly and incorrectly in 5 different ways. See http://groupware.les.inf.puc-rio.br/har.
+This assignment is to use the Test data to build a prediction model to accurately predict a set of 20 entries.
+
+The approach used is to split the Data into testing and training. Then apply two different models, a Decision Tree and Random Forrest. The latter is much more accurate and is used to apply to the Validation sample.
+
+#### Packages
+```{r message=FALSE}
+library(dplyr)  
+library(knitr)
+
+library(randomForest)  
+library(caret)
+library(rattle)
+library(gbm)
+library(rpart)
+```
+
+```{r}
+setwd("~/dataScience/8 Practical Machine Learning/Assig")
+rm(list=ls())
+```
+
+
+## Download and read data
+```{r download, cache=TRUE}
+
+#Function to download & read files
+getData <- function (SrcFile, SrcURL){
+        download.file(url = SrcURL, destfile = SrcFile, method = "curl")
+        read.csv(SrcFile ,na.strings=c(" ", "", "#DIV/0!", "NA"))
+        }
+
+Training0 <- getData("pml-training.csv",
+        "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+Finaltest <- getData("pml-testing.csv",
+        "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+
+print(dim(Training0))
+print(dim(Finaltest))
+```
+
+## Tidy the data
+```{r}
+#Remove columns X,  user_name, timestamps, & window info
+
+Training1 <- Training0[,-c(1:7)]
+print(dim(Training1))
+#Remove NA rows
+Training2<-Training1[,!apply(Training1,2,function(x) any(is.na(x)) )]
+print(dim(Training2))
+```
+
+## Split data into training and testing
+```{r}
+set.seed(679)
+splitter<-createDataPartition(Training2$classe, p=0.6, list =FALSE)
+train <- Training2[splitter,]
+test <- Training2[-splitter,]
+print(dim(train))
+print(dim(test))
+```
+
+
+## Decision Tree
+```{r}
+set.seed(567)
+model_DT<-rpart(classe ~ .,data=train,method="class")
+
+```
+
+```{r}
+fancyRpartPlot(model_DT)
+```
+
+Now apply to Test data
+```{r}
+predict_DT <-predict(model_DT,newdata=test,type="class")
+conMatrix_DT <- confusionMatrix(predict_DT, test$classe)
+conMatrix_DT
+```
+
+Accuracy is low at 74.31% so try a different approach.
+
+### Random Forest
+
+Use with cross validation
+```{r}
+set.seed(789)
+model_RF <- randomForest(classe~., data=train, method="class",
+                        trControl = traincontrol(method="cv"),number=3)
+model_RF
+```
+
+```{r}
+predict_RF <- predict(model_RF,test, type='class')
+conMatrix_RF <- confusionMatrix(predict_RF,test$classe)
+conMatrix_RF
+```
+
+## Out of sample error rate 
+For the Decision Tree the accuracy was 74.3% and Random Forest is 99.4%, thus use this for the Validation 
+
+
+# Validation
+Apply the Random Forest model to the Validation data
+```{r}
+TestResult <- predict(model_RF,Finaltest, type="class")
+TestResult
+```
+
+
